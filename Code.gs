@@ -16,50 +16,45 @@ var DEFAULT_FORMAT = FORMAT_PRETTY;
 var DEFAULT_LANGUAGE = LANGUAGE_JS;
 var DEFAULT_STRUCTURE = STRUCTURE_LIST;
 
-
 function onOpen() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var menuEntries = [
     {name: "Export JSON", functionName: "exportJSON"},
-    {name: "Export English for Android", functionName: "exportEnglishForAndroid"},
-    {name: "Export English for iOS", functionName: "exportEnglishForiOS"}
+    {name: "Export...", functionName: "exportWizard"}
   ];
   ss.addMenu("Export", menuEntries);
 }
- 
-function makeLabel(app, text, id) {
-  var lb = app.createLabel(text);
-  if (id) lb.setId(id);
-  return lb;
+
+function exportWizard(e) {
+  var html = HtmlService.createHtmlOutputFromFile("Wizard.html")
+    .setWidth(400)
+    .setHeight(300);
+  SpreadsheetApp.getUi() // Or DocumentApp or SlidesApp or FormApp.
+    .showModalDialog(html, 'Export');
 }
 
-function makeListBox(app, name, items) {
-  var listBox = app.createListBox().setId(name).setName(name);
-  listBox.setVisibleItemCount(1);
-  
-  var cache = CacheService.getPublicCache();
-  var selectedValue = cache.get(name);
-  Logger.log(selectedValue);
-  for (var i = 0; i < items.length; i++) {
-    listBox.addItem(items[i]);
-    if (items[1] == selectedValue) {
-      listBox.setSelectedIndex(i);
+function doExport(platform, language) {
+  if (platform == "android") {
+  Logger.log(getExportOptions(null));
+    return exportForAndroid(getExportOptions(null), language);
+  }
+  else if (platform == "ios") {
+    return exportForiOS(getExportOptions(null), language);
+  }
+}
+
+function getLanguages() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  var headersRange = sheet.getRange(1, 1, sheet.getFrozenRows(), sheet.getMaxColumns());
+  var headers = headersRange.getValues()[0];
+  var languages = [];
+  for (var i = 2; i < headers.length; i++) {
+    if (headers[i] && headers[i].length) {
+      languages.push(headers[i]);
     }
   }
-  return listBox;
-}
-
-function makeButton(app, parent, name, callback) {
-  var button = app.createButton(name);
-  app.add(button);
-  var handler = app.createServerClickHandler(callback).addCallbackElement(parent);;
-  button.addClickHandler(handler);
-  return button;
-}
-
-function makeTextBox(app, name) { 
-  var textArea = app.createTextArea().setWidth('100%').setHeight('200px').setId(name).setName(name);
-  return textArea;
+  return languages;
 }
 
 function exportJSON(e) {
@@ -68,14 +63,6 @@ function exportJSON(e) {
   var rowsData = getRowsData_(sheet, getExportOptions(e));
   var json = makeJSON_(rowsData, getExportOptions(e));
   displayText_(json, "Exported JSON");
-}
-
-function exportEnglishForAndroid(e) {
-  exportForAndroid(e, "English")
-}
-
-function exportEnglishForiOS(e) {
-  exportForiOS(e, "English")
 }
 
 function exportForAndroid(e, language) {
@@ -87,26 +74,17 @@ function exportForAndroid(e, language) {
   
   for (var i = 0; i < rowsData.length; i++) {
     var row = rowsData[i];
-    if (!row["key"]) {
+    if (!row["key"] || row["key"].startsWith("#")) {
       continue;
     }
-    output += '\t<string name="' + row["key"] + '">' + sanitizeForAndroid(row[languageKey]) + '</string>\n';
+    if (row["comment"] && row["comment"].length) {
+      output += "\t<!-- " + row["comment"] + " -->\n";
+    }
+    output += '\t<string name="' + row["key"] + '">' + sanitizeForAndroid_(row[languageKey]) + '</string>\n';
   }
   
   output += '</resources>\n';
-  displayText_(output, "Export for Android");
-}
-
-function sanitizeForAndroid(string) {
-  string = string.replace(/\n/gi, "\\n")
-  string = string.replace(/%@/gi, "%s")
-  string = string.replace(/\?/gi, "\\?")
-  string = string.replace(/@/gi, "\\@")
-  string = string.replace(/</gi, "&lt;")
-  string = string.replace(/&/gi, "&amp;")
-  string = string.replace(/"/gi, "\\\"");
-  string = string.replace(/'/gi, "\\'")
-  return string
+  return output;
 }
 
 function exportForiOS(e, language) {
@@ -124,21 +102,33 @@ function exportForiOS(e, language) {
   
   for (var i = 0; i < rowsData.length; i++) {
     var row = rowsData[i];
-    if (!row["key"]) {
+    if (!row["key"] || row["key"].startsWith("#")) {
       continue;
     }
     if (row["comment"] && row["comment"].length) {
       output += "\n/* " + row["comment"] + " */\n"
     }
     Logger.log(row);
-    output += '"' + row["key"] + '" = "' + sanitizeForiOS(row[languageKey]) + '";\n';
+    output += '"' + row["key"] + '" = "' + sanitizeForiOS_(row[languageKey]) + '";\n';
   }
   
   output += '\n';
-  displayText_(output, "Export for iOS");
+  return output;
 }
 
-function sanitizeForiOS(string) {
+function sanitizeForAndroid_(string) {
+  string = string.replace(/\n/gi, "\\n")
+  string = string.replace(/%@/gi, "%s")
+  string = string.replace(/\?/gi, "\\?")
+  string = string.replace(/@/gi, "\\@")
+  string = string.replace(/</gi, "&lt;")
+  string = string.replace(/&/gi, "&amp;")
+  string = string.replace(/"/gi, "\\\"");
+  string = string.replace(/'/gi, "\\'")
+  return string
+}
+
+function sanitizeForiOS_(string) {
   string = string.replace(/\n/gi, "\\n")
   string = string.replace(/%s/gi, "%@")
   string = string.replace(/"/gi, "\\\"");
@@ -148,9 +138,9 @@ function sanitizeForiOS(string) {
 function getExportOptions(e) {
   var options = {};
   
-  options.language = e && e.parameter.language || DEFAULT_LANGUAGE;
-  options.format   = e && e.parameter.format || DEFAULT_FORMAT;
-  options.structure = e && e.parameter.structure || DEFAULT_STRUCTURE;
+  options.language = e && e.parameter && e.parameter.language || DEFAULT_LANGUAGE;
+  options.format   = e && e.parameter && e.parameter.format || DEFAULT_FORMAT;
+  options.structure = e && e.parameter && e.parameter.structure || DEFAULT_STRUCTURE;
   
   var cache = CacheService.getPublicCache();
   cache.put('language', options.language);
