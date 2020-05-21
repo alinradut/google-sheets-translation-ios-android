@@ -2,6 +2,8 @@
 
 This is a simple script for Google Sheets which parses the rows and columns and exports translation files for Android and iOS apps.
 
+![Example](https://github.com/alinradut/google-sheets-translation-ios-android/blob/master/example.gif)
+
 # How do I use this?
 
 1. Open up your spreadsheet and go into `Tools > Script Editor`.
