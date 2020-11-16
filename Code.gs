@@ -28,14 +28,17 @@ function onOpen() {
 function exportWizard(e) {
   var html = HtmlService.createHtmlOutputFromFile("Wizard.html")
     .setWidth(400)
-    .setHeight(300);
+    .setHeight(400);
   SpreadsheetApp.getUi() // Or DocumentApp or SlidesApp or FormApp.
     .showModalDialog(html, 'Export');
 }
 
+function doTest() {
+  doExport("ios", "German");
+}
+
 function doExport(platform, language) {
   if (platform == "android") {
-  Logger.log(getExportOptions(null));
     return exportForAndroid(getExportOptions(null), language);
   }
   else if (platform == "ios") {
@@ -50,7 +53,7 @@ function getLanguages() {
   var headers = headersRange.getValues()[0];
   var languages = [];
   for (var i = 2; i < headers.length; i++) {
-    if (headers[i] && headers[i].length) {
+    if (headers[i] && headers[i].length && !headers[i].startsWith("#")) {
       languages.push(headers[i]);
     }
   }
@@ -66,21 +69,34 @@ function exportJSON(e) {
 }
 
 function exportForAndroid(e, language) {
+  var today = new Date();
+  var date = today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+  var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+  var dateTime = date+' '+time;
+  
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getActiveSheet();
   var rowsData = getRowsData_(sheet, getExportOptions(e));
   var output = '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n';
+  output += '<!-- ' + language + ' translation file. Generated on ' + dateTime + ' -->\n\n';
   var languageKey = language.toLowerCase()
   
   for (var i = 0; i < rowsData.length; i++) {
     var row = rowsData[i];
-    if (!row["key"] || row["key"].startsWith("#")) {
+    if (!row["key"] || row["key"].startsWith("#Empty lines")) {
       continue;
     }
-    if (row["comment"] && row["comment"].length) {
-      output += "\t<!-- " + row["comment"] + " -->\n";
+    if (row["key"].startsWith("#")) {
+      output += "\t<!-- " + row["key"].substring(1) + " -->\n";
+      continue;
     }
-    output += '\t<string name="' + row["key"] + '">' + sanitizeForAndroid_(row[languageKey]) + '</string>\n';
+    if (row[languageKey]) {
+      if (row["comment"] && row["comment"].length) {
+        output += "\t<!-- " + row["comment"] + " -->\n";
+      }
+
+      output += '\t<string name="' + row["key"] + '">' + sanitizeForAndroid_(row[languageKey]) + '</string>\n';
+    }
   }
   
   output += '</resources>\n';
@@ -102,14 +118,20 @@ function exportForiOS(e, language) {
   
   for (var i = 0; i < rowsData.length; i++) {
     var row = rowsData[i];
-    if (!row["key"] || row["key"].startsWith("#")) {
+    if (!row["key"] || row["key"].startsWith("#Empty lines")) {
       continue;
     }
-    if (row["comment"] && row["comment"].length) {
-      output += "\n/* " + row["comment"] + " */\n"
+    if (row["key"].startsWith("#")) {
+      output += "\n/* " + row["key"].substring(1) + " */\n"
+      continue;
     }
     Logger.log(row);
-    output += '"' + row["key"] + '" = "' + sanitizeForiOS_(row[languageKey]) + '";\n';
+    if (row[languageKey]) {
+      if (row["comment"] && row["comment"].length) {
+        output += "\n/* " + row["comment"] + " */\n"
+      }
+      output += '"' + row["key"] + '" = "' + sanitizeForiOS_(row[languageKey]) + '";\n';
+    }
   }
   
   output += '\n';
@@ -117,6 +139,9 @@ function exportForiOS(e, language) {
 }
 
 function sanitizeForAndroid_(string) {
+  if (!string.length) {
+    return "";
+  }
   string = string.replace(/\n/gi, "\\n")
   string = string.replace(/%@/gi, "%s")
   string = string.replace(/\?/gi, "\\?")
@@ -129,6 +154,9 @@ function sanitizeForAndroid_(string) {
 }
 
 function sanitizeForiOS_(string) {
+  if (!string.length) {
+    return "";
+  }
   string = string.replace(/\n/gi, "\\n")
   string = string.replace(/%s/gi, "%@")
   string = string.replace(/"/gi, "\\\"");
