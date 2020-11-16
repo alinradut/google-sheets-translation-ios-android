@@ -14,26 +14,43 @@
     }
   </style>
   <script>
+    var languages = [];
+    
+    function setStatus(status) {
+      document.getElementById("status").innerText = state;
+    }
+    
     function loadLanguages() {
-      google.script.run.withSuccessHandler(function(ar) {
-        let select = document.createElement("select");
-        select.id = "languages";
-        document.getElementById("languagesContainer").appendChild(select);
-        ar.forEach(function(e, i) {
-          let option = document.createElement("option");
-          option.value = e;
-          option.text = e;
-          document.getElementById("languages").appendChild(option);
+      google.script.run.withSuccessHandler(function(e) {
+        languages = e
+        var container = document.getElementById("outputContainer")
+        while (container.firstChild) {
+          container.removeChild(container.firstChild);
+        }
+
+        languages.forEach(function (e, i) {
+          var legend = document.createElement("legend");
+          legend.innerText = e;
+          legend.setAttribute("for", "output" + i);
+
+          var textarea = document.createElement("textarea");
+          textarea.id = "output" + i;
+          textarea.setAttribute("cols", 40);
+          textarea.setAttribute("rows", 4);
+
+          container.appendChild(legend)
+          container.appendChild(textarea)
         });
       }).getLanguages();
     };
 
     function onExport() {
-      var language = document.getElementById("languages").value;
       var platform = document.querySelector('input[name="platform"]:checked').value;
-      google.script.run.withSuccessHandler(function(output) {
-        document.getElementById("output").value = output;
-      }).doExport(platform, language);
+      languages.forEach(function (language, i) {
+        google.script.run.withSuccessHandler(function (output) {
+          document.getElementById("output" + i).value = output;
+        }).doExport(platform, language);
+      });
     };
   </script>
 </head>
@@ -49,14 +66,10 @@
       </div>
     </fieldset>
     <fieldset>
-      <legend>Language</legend>
-      <div id="languagesContainer" class="dropdown-content">
-        <!-- <select name="languages" id="languages"><option value="English">English</option></select> -->
-      </div>
-    </fieldset>
-    <fieldset>
       <legend>Output</legend>
-      <textarea id="output" rows="5" cols="50" readonly="readonly"></textarea>
+      <div id="outputContainer" class="dropdown-content">
+        <p>Loading languages...</p>
+      </div>
     </fieldset>
     <button onclick="onExport()">Export</button>
   </div>
