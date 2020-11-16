@@ -2,7 +2,7 @@
 
 This is a simple script for Google Sheets which parses the rows and columns and exports translation files for Android and iOS apps.
 
-![Example](https://github.com/alinradut/google-sheets-translation-ios-android/blob/master/example.gif)
+![Example](https://github.com/alinradut/google-sheets-translation-ios-android/blob/master/example_multilanguage.gif)
 
 # How do I use this?
 
