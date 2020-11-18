@@ -2,6 +2,8 @@
 
 This is a simple script for Google Sheets which parses the rows and columns and exports translation files for Android and iOS apps.
 
+Special characters will be automatically escaped for each platform and string format specifiers will be converted to the platform specific defaults (such as %s which will be converted to %@ for iOS, or %@ which will be converted to %s for Android).
+
 ![Example](https://github.com/alinradut/google-sheets-translation-ios-android/blob/master/demo.gif)
 
 # How do I use this?
