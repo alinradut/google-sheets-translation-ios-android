@@ -23,7 +23,7 @@ If you want to start from scratch, follow the steps below:
 2. Paste the contents of `Code.gs` from this repo into the script area.
 3. Create a new file in the script editor called `Wizard.html` and copy and paste the contents of this file from this repo.
 4. (Optional) Go to `View > Show Manifest` file and then paste the contents of `appsscript.json` from this repo into the script area.
-5. Go back to your spreadsheet and define the table headers as such: `Key | Comment | English`, etc.
+5. Go back to your spreadsheet and define the table headers as such: `Key | Comment | English`, etc. The script assumes column A will be the localization key, column B will be the comment and all columns following after that are language columns.
 6. Go to `View > Freeze > 1 row`
 7. Add some keys and English translations.
 8. Hit `Export > Export...` and make your selections.
@@ -33,4 +33,4 @@ The code has not been cleaned up at all, but it gets the job done.
 
 # How do I add more languages?
 
-Just add a new column after the last column.
+Just add a new column after the last column, the script will automatically pick up all columns following B as a languages.
