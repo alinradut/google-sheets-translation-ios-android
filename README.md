@@ -11,7 +11,7 @@ Special characters will be automatically escaped for each platform and string fo
 There's two ways to go about this: start from scratch or use a pre-built spreadsheet. 
 
 ## Pre-built spreadsheet
-The [pre-built spreadsheet](https://docs.google.com/spreadsheets/d/1pQFRWnCJWQ5TUv6CY26HvQYbwlwwyVCkXCVMBHx9C4U/edit#gid=0) has all kinds of cosmetic bells and whistles that automatically colorize the cells and rows based on the contents.
+The [pre-built spreadsheet](https://docs.google.com/spreadsheets/d/1pQFRWnCJWQ5TUv6CY26HvQYbwlwwyVCkXCVMBHx9C4U/edit#gid=0) has all kinds of cosmetic bells and whistles that automatically colorize the cells and rows based on the contents, as shown by the GIF above.
 
 You will need to duplicate this spreadsheet to your account in order to have access to the *Export* script.
 
