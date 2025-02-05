@@ -12,6 +12,39 @@
     textarea {
       font-size: 0.8em;
     }
+    
+    .copyButton {
+        font-size: 1.5em;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        padding: 0px 10px;
+    }
+    
+    #exportButton {
+        font-size: 1.5em;
+        border: none;
+        padding: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    .topAligned {
+      display: flex;
+      flex-direction: row;
+      align-items: top;
+      /* border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      max-width: 300px;
+      margin: 0 auto; */
+    }
+
+    .topAligned  * {
+      padding: 5px 5px;
+    }
+
   </style>
   <script>
     var languages = [];
@@ -19,8 +52,21 @@
     function setStatus(status) {
       document.getElementById("status").innerText = state;
     }
+
+    function doCopy(textareaId) {
+      var textbox=document.getElementById(textareaId);
+      textbox.select();
+      document.execCommand('copy');
+      google.script.run
+      .withSuccessHandler(function(){
+        google.script.host.close();
+      });
+    }
     
     function loadLanguages() {
+      
+      document.getElementById("exportButton").disabled = true;
+
       google.script.run.withSuccessHandler(function(e) {
         languages = e
         var container = document.getElementById("outputContainer")
@@ -29,26 +75,57 @@
         }
 
         languages.forEach(function (e, i) {
+
           var legend = document.createElement("legend");
           legend.innerText = e;
           legend.setAttribute("for", "output" + i);
+
+          var copyButton = document.createElement("button");
+          copyButton.id = "copyButton" + i;
+          copyButton.textContent = "📋";
+          copyButton.classList.add("copyButton");
 
           var textarea = document.createElement("textarea");
           textarea.id = "output" + i;
           textarea.setAttribute("cols", 40);
           textarea.setAttribute("rows", 4);
 
-          container.appendChild(legend)
-          container.appendChild(textarea)
+          var div = document.createElement("div");
+          div.classList.add("topAligned");
+          div.appendChild(textarea);
+          div.appendChild(copyButton);
+
+          container.appendChild(legend);
+          container.appendChild(div);
+
+          copyButton.addEventListener("click", function() {
+            doCopy("output" + i);
+          copyButton.textContent = "✅";
+          });
         });
+
+        document.getElementById("exportButton").disabled = false;
+        document.getElementById('exportButton').focus();
       }).getLanguages();
     };
 
     function onExport() {
       var platform = document.querySelector('input[name="platform"]:checked').value;
+      var remaining = languages.length;
+
+      document.getElementById("state").innerText = "Exporting... 🔨";
+
       languages.forEach(function (language, i) {
+        // reset the text areas and the copy buttons
+        document.getElementById("copyButton" + i).textContent = "📋";
+        document.getElementById("output" + i).value = "";
+
         google.script.run.withSuccessHandler(function (output) {
           document.getElementById("output" + i).value = output;
+          remaining -= 1;
+          if (!remaining) {
+            document.getElementById("state").innerText = "✅";
+          }
         }).doExport(platform, language);
       });
     };
@@ -63,7 +140,16 @@
         <label for="android">Android</label>
         <input type="radio" name="platform" value="ios" id="ios">
         <label for="ios">iOS</label>
+        <input type="radio" name="platform" value="i18n" id="i18n">
+        <label for="i18n">i18n JSON</label>
+        <input type="radio" name="platform" value="yaml" id="yaml">
+        <label for="yaml">YAML</label>
       </div>
+    </fieldset>
+    <fieldset>
+      <legend>Export</legend>
+      <button onclick="onExport()" id="exportButton">Export ➡</button>
+      <span id="state"></span>
     </fieldset>
     <fieldset>
       <legend>Output</legend>
@@ -71,7 +157,6 @@
         <p>Loading languages...</p>
       </div>
     </fieldset>
-    <button onclick="onExport()">Export</button>
   </div>
 </body>
 </html>

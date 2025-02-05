@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * {
+      font-family: sans-serif;
+    }
+    .dropdown-content select {
+      font-size: 1.0em;
+    }
+    textarea {
+      font-size: 0.8em;
+    }
+  </style>
+  <script>
+    var languages = ["all"];
+    
+    function setStatus(status) {
+      document.getElementById("status").innerHTML = "Status: " + status;
+    }
+    
+    function loadLanguages() {
+      google.script.run.withSuccessHandler(function(e) {
+        languages = e
+        var container = document.getElementById("language")
+
+        languages.forEach(function (e, i) {
+          var option = document.createElement("option");
+          option.innerText = e;
+          option.setAttribute("value", e);
+          container.appendChild(option)
+        });
+      }).getLanguages();
+    };
+
+    function onMarkMissingTranslations() {
+      
+      var selectElement = document.getElementById('language');
+      var languages = [...selectElement.options].map(o => o.value);
+      // remove the first one because it's "all"
+      languages.shift();
+      
+      var lang = document.getElementById("language").value;
+      if (lang && lang != "all") {
+        languages = [lang];
+      }
+
+      setStatus("Processing...");
+      document.getElementById("button").disabled = true;
+      google.script.run.withSuccessHandler(function (missingTranslations) {
+          setStatus("Ready");
+          document.getElementById("button").disabled = false;
+      }).markMissingTranslations(languages);
+    };
+  </script>
+</head>
+<body onload="loadLanguages()">
+  <div class="dropdown">
+    <fieldset>
+      <legend>Language</legend>
+      <div id="languageContainer" class="dropdown-content">
+        <select name="language" id="language">
+          <option value="all">All</option>
+        </select>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Execute</legend>
+      <p>
+      <button onclick="onMarkMissingTranslations()" id="button">Start</button>
+      <small id="status">Status: Ready to process</small>
+      </p>
+      <p>
+        This will populate all missing translations for the selected language with the placeholder <i>###</i>.
+      </p>
+    </fieldset>
+  </div>
+</body>
+</html>

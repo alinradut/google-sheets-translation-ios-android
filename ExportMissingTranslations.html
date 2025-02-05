@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    * {
+      font-family: sans-serif;
+    }
+    .dropdown-content select {
+      font-size: 1.0em;
+    }
+    textarea {
+      font-size: 0.8em;
+    }
+  </style>
+  <script>
+    var languages = ["all"];
+    
+    function setStatus(status) {
+      document.getElementById("status").innerHTML = "Status: " + status;
+    }
+    
+    function loadLanguages() {
+      google.script.run.withSuccessHandler(function(e) {
+        languages = e
+        var container = document.getElementById("language")
+
+        languages.forEach(function (e, i) {
+          var option = document.createElement("option");
+          option.innerText = e;
+          option.setAttribute("value", e);
+          container.appendChild(option)
+        });
+      }).getLanguages();
+    };
+
+    function onExportMissingTranslations() {
+      
+      var selectElement = document.getElementById('language');
+      var languages = [...selectElement.options].map(o => o.value);
+      // remove the first one because it's "all"
+      languages.shift();
+      
+      var lang = document.getElementById("language").value;
+      if (lang && lang != "all") {
+        languages = [lang];
+      }
+
+      setStatus("Processing...");
+      document.getElementById("outputContainer").value = "";
+      document.getElementById("button").disabled = true;
+      google.script.run.withSuccessHandler(function (missingTranslations) {
+          document.getElementById("outputContainer").value = missingTranslations;
+          document.getElementById("output").style.setProperty("display", "block");
+          setStatus("Ready");
+          document.getElementById("button").disabled = false;
+      }).exportMissingTranslations(languages);
+    };
+  </script>
+</head>
+<body onload="loadLanguages()">
+  <div class="dropdown">
+    <fieldset>
+      <legend>Language</legend>
+      <div id="languageContainer" class="dropdown-content">
+        <select name="language" id="language">
+          <option value="all">All</option>
+        </select>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Execute</legend>
+      <button onclick="onExportMissingTranslations()" id="button">Export</button>
+      <small id="status">Status: Ready to export</small>
+    </fieldset>
+
+    <fieldset id="output" style="display: none">
+      <legend>Output</legend>
+      <textarea id="outputContainer" class="dropdown-content" rows="10" cols="40">
+        
+      </textarea>
+    </fieldset>
+  </div>
+</body>
+</html>

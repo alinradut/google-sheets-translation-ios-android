@@ -16,25 +16,125 @@ var DEFAULT_FORMAT = FORMAT_PRETTY;
 var DEFAULT_LANGUAGE = LANGUAGE_JS;
 var DEFAULT_STRUCTURE = STRUCTURE_LIST;
 
+// translations to use when exporting in case the value is not available in the current language
+// will only be used for iOS/Android exports
+var FALLBACK_LANGUAGE = "english";
+
+// whether to add a ### marker to exported strings that are not available in the current language
+// will only be used for iOS/Android exports
+var MARK_MISSING_TRANSLATIONS = 0;
+
+function doTest() {
+  markMissingTranslationsWizard();
+}
+
 function onOpen() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var menuEntries = [
     {name: "Export JSON", functionName: "exportJSON"},
-    {name: "Export...", functionName: "exportWizard"}
+    {name: "Export...", functionName: "exportWizard"},
+    {name: "Export missing translations...", functionName: "exportMissingTranslationsWizard"},
+    {name: "Mark missing translations...", functionName: "markMissingTranslationsWizard"}
   ];
-  ss.addMenu("Export", menuEntries);
+  ss.addMenu("Export tools", menuEntries);
 }
 
 function exportWizard(e) {
   var html = HtmlService.createHtmlOutputFromFile("Wizard.html")
-    .setWidth(400)
-    .setHeight(400);
+    .setWidth(500)
+    .setHeight(600);
   SpreadsheetApp.getUi() // Or DocumentApp or SlidesApp or FormApp.
     .showModalDialog(html, 'Export');
 }
 
-function doTest() {
-  doExport("ios", "German");
+function exportMissingTranslationsWizard(e) {
+  var html = HtmlService.createHtmlOutputFromFile("ExportMissingTranslations.html")
+    .setWidth(500)
+    .setHeight(600);
+  SpreadsheetApp.getUi() // Or DocumentApp or SlidesApp or FormApp.
+    .showModalDialog(html, 'Missing translations');
+}
+
+function markMissingTranslationsWizard(e) {
+  var html = HtmlService.createHtmlOutputFromFile("MarkMissingTranslations.html")
+    .setWidth(500)
+    .setHeight(600);
+  SpreadsheetApp.getUi() // Or DocumentApp or SlidesApp or FormApp.
+    .showModalDialog(html, 'Missing translations');
+}
+
+function exportMissingTranslations(languages) {
+  var output = [];
+
+  languages.forEach(function (language, i) {
+    const keys = exportMissingTranslationsForLanguage(language);
+    if (keys.length == 0) {
+      return;
+    }
+    output.push(language + "\n\n" + keys.join("\n"))
+  });
+
+  return output.join("\n\n")
+}
+
+function exportMissingTranslationsForLanguage(language) {
+  const languageKey = language.toLowerCase();
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  var rowsData = getRowsData_(sheet, { structure: STRUCTURE_LIST });
+  
+  var needingTranslation = [];
+
+  for (var i = 0; i < rowsData.length; i++) {
+    var row = rowsData[i];
+    if (!row["key"] || row["key"].startsWith("#")) {
+      continue;
+    }
+
+    var translation = row[languageKey];
+    if (translation) {
+      continue;
+    }
+
+    needingTranslation.push(row["key"]);
+  }
+
+  return needingTranslation;
+}
+
+
+function markMissingTranslations(languages) {
+  languages.forEach(function (language, i) {
+    markMissingTranslationsForLanguage(language);
+  });
+}
+
+
+function markMissingTranslationsForLanguage(language) {
+  const languageKey = language.toLowerCase();
+  let languageIdx = getLanguageIndex(language);
+  let keyIndexes = getKeyIndexes();
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  var rowsData = getRowsData_(sheet, { structure: STRUCTURE_LIST });
+
+  for (var i = 0; i < rowsData.length; i++) {
+    var row = rowsData[i];
+    if (!row["key"] || row["key"].startsWith("#")) {
+      continue;
+    }
+
+    var translation = row[languageKey];
+    if (translation) {
+      continue;
+    }
+
+    let rowIdx = keyIndexes[row["key"]];
+    let range = sheet.getRange(rowIdx + 1, languageIdx + 1);
+    range.setValue("###")
+  }
 }
 
 function doExport(platform, language) {
@@ -43,6 +143,12 @@ function doExport(platform, language) {
   }
   else if (platform == "ios") {
     return exportForiOS(getExportOptions(null), language);
+  }
+  else if (platform == "i18n") {
+    return exportFori18n(getExportOptions(null), language);
+  }
+  else if (platform == "yaml") {
+    return exportForYAML(getExportOptions(null), language);
   }
 }
 
@@ -60,12 +166,100 @@ function getLanguages() {
   return languages;
 }
 
+function getLanguageIndex(language) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  var headersRange = sheet.getRange(1, 1, sheet.getFrozenRows(), sheet.getMaxColumns());
+  var headers = headersRange.getValues()[0];
+
+  for (var i = 0; i < headers.length; i++) {
+    if (headers[i].toLowerCase() == language.toLowerCase()) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+function getKeyIndexes() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  var keysRange = sheet.getRange(1, 1, sheet.getMaxRows(), 1);
+
+  var keys = {};
+
+  let rows = keysRange.getValues();
+  
+  for (var i = 0; i < rows.length; i++) {
+    let key = rows[i][0];
+    if (!key || key.startsWith("#")) {
+      continue;
+    }
+    keys[key] = i;
+  }
+
+  return keys;
+}
+
 function exportJSON(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getActiveSheet();
   var rowsData = getRowsData_(sheet, getExportOptions(e));
   var json = makeJSON_(rowsData, getExportOptions(e));
   displayText_(json, "Exported JSON");
+}
+
+function exportForYAML(e, language) {
+  
+  var today = new Date();
+  var date = today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+  var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+  var dateTime = date+' '+time;
+  
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  var rowsData = getRowsData_(sheet, getExportOptions(e));
+  var output = '# ' + language + ' translation file. Generated on ' + dateTime + '\n\n';
+  var languageKey = language.toLowerCase();
+  
+  for (var i = 0; i < rowsData.length; i++) {
+    var row = rowsData[i];
+    if (!row["key"] || row["key"].startsWith("#Empty lines")) {
+      continue;
+    }
+    if (row["key"].startsWith("#")) {
+      output += "\n" + row["key"] + "\n";
+      continue;
+    }
+
+    var translation = row[languageKey];
+    if (!translation) {
+      // fallback to english translation
+      if (row[FALLBACK_LANGUAGE]) {
+        translation = row[FALLBACK_LANGUAGE];
+        if (translation && MARK_MISSING_TRANSLATIONS) {
+          translation = translation + " ###";
+        }
+      }
+    }
+    // fallback to key if FALLBACK_LANGUAGE is not available
+    if (!translation) {
+      translation = row["key"];
+      if (MARK_MISSING_TRANSLATIONS) {
+          translation = translation + " ###";
+        }
+    }
+
+    if (translation) {
+      if (row["comment"] && row["comment"].length) {
+        output += "\n# " + row["comment"] + "\n"
+      }
+      output += row["key"] + ': ' + sanitizeForYAML_(translation) + '\n';
+    }
+  }
+  
+  output += '\n';
+  return output;
 }
 
 function exportForAndroid(e, language) {
@@ -90,12 +284,31 @@ function exportForAndroid(e, language) {
       output += "\t<!-- " + row["key"].substring(1) + " -->\n";
       continue;
     }
-    if (row[languageKey]) {
+
+    var translation = row[languageKey];
+    if (!translation) {
+      // fallback to english translation
+      if (row[FALLBACK_LANGUAGE]) {
+        translation = row[FALLBACK_LANGUAGE];
+        if (translation && MARK_MISSING_TRANSLATIONS) {
+          translation = translation + " ###";
+        }
+      }
+    }
+    // fallback to key if FALLBACK_LANGUAGE is not available
+    if (!translation) {
+      translation = row["key"];
+      if (MARK_MISSING_TRANSLATIONS) {
+          translation = translation + " ###";
+        }
+    }
+
+    if (translation) {
       if (row["comment"] && row["comment"].length) {
         output += "\t<!-- " + row["comment"] + " -->\n";
       }
 
-      output += '\t<string name="' + row["key"] + '">' + sanitizeForAndroid_(row[languageKey]) + '</string>\n';
+      output += '\t<string name="' + row["key"] + '">' + sanitizeForAndroid_(translation) + '</string>\n';
     }
   }
   
@@ -125,12 +338,30 @@ function exportForiOS(e, language) {
       output += "\n/* " + row["key"].substring(1) + " */\n"
       continue;
     }
-    Logger.log(row);
-    if (row[languageKey]) {
+
+    var translation = row[languageKey];
+    if (!translation) {
+      // fallback to english translation
+      if (row[FALLBACK_LANGUAGE]) {
+        translation = row[FALLBACK_LANGUAGE];
+        if (translation && MARK_MISSING_TRANSLATIONS) {
+          translation = translation + " ###";
+        }
+      }
+    }
+    // fallback to key if FALLBACK_LANGUAGE is not available
+    if (!translation) {
+      translation = row["key"];
+      if (MARK_MISSING_TRANSLATIONS) {
+          translation = translation + " ###";
+        }
+    }
+
+    if (translation) {
       if (row["comment"] && row["comment"].length) {
         output += "\n/* " + row["comment"] + " */\n"
       }
-      output += '"' + row["key"] + '" = "' + sanitizeForiOS_(row[languageKey]) + '";\n';
+      output += '"' + row["key"] + '" = "' + sanitizeForiOS_(translation) + '";\n';
     }
   }
   
@@ -138,18 +369,73 @@ function exportForiOS(e, language) {
   return output;
 }
 
+function exportFori18n(e, language) {
+  
+  var today = new Date();
+  var date = today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+  var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+  var dateTime = date+' '+time;
+  
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  var rowsData = getRowsData_(sheet, getExportOptions(e));
+  var output = '/* ' + language + ' translation file. Generated on ' + dateTime + ' */\n\n';
+  var languageKey = language.toLowerCase();
+  var out = {};
+  
+  for (var i = 0; i < rowsData.length; i++) {
+    var row = rowsData[i];
+    if (!row["key"] || row["key"].startsWith("#Empty lines")) {
+      continue;
+    }
+    if (row["key"].startsWith("#")) {
+      // output += "\n/* " + row["key"].substring(1) + " */\n"
+      continue;
+    }
+
+    var translation = row[languageKey];
+    if (!translation) {
+      // fallback to english translation
+      if (row[FALLBACK_LANGUAGE]) {
+        translation = row[FALLBACK_LANGUAGE];
+        if (translation && MARK_MISSING_TRANSLATIONS) {
+          translation = translation + " ###";
+        }
+      }
+    }
+    // fallback to key if FALLBACK_LANGUAGE is not available
+    if (!translation) {
+      translation = row["key"];
+      if (MARK_MISSING_TRANSLATIONS) {
+          translation = translation + " ###";
+        }
+    }
+
+    if (translation) {
+      out[row["key"]] = sanitizeFori18n_(translation)
+    }
+  }
+  
+  var options = {}
+  options.format = FORMAT_PRETTY;
+
+  output = makeJSON_(out, options)
+  return output;
+}
+
 function sanitizeForAndroid_(string) {
   if (!string.length) {
     return "";
   }
-  string = string.replace(/\n/gi, "\\n")
-  string = string.replace(/%@/gi, "%s")
-  string = string.replace(/\?/gi, "\\?")
-  string = string.replace(/@/gi, "\\@")
-  string = string.replace(/</gi, "&lt;")
-  string = string.replace(/&/gi, "&amp;")
+  string = string.replace(/\n/gi, "\\n");
+  string = string.replace(/%@/gi, "%s");
+  string = string.replace(/\?/gi, "\\?");
+  string = string.replace(/(\%[0-9]\$)@/gi, "$1s");;
+  string = string.replace(/@/gi, "\\@");
+  string = string.replace(/</gi, "&lt;");
+  string = string.replace(/&/gi, "&amp;");
   string = string.replace(/"/gi, "\\\"");
-  string = string.replace(/'/gi, "\\'")
+  string = string.replace(/'/gi, "\\'");
   return string
 }
 
@@ -157,9 +443,39 @@ function sanitizeForiOS_(string) {
   if (!string.length) {
     return "";
   }
-  string = string.replace(/\n/gi, "\\n")
-  string = string.replace(/%s/gi, "%@")
+  string = string.replace(/\n/gi, "\\n");
+  string = string.replace(/(\%[0-9]\$)s/gi, "$1@");;
+  string = string.replace(/%s/gi, "%@");
   string = string.replace(/"/gi, "\\\"");
+  return string
+}
+
+function sanitizeFori18n_(string) {
+  if (!string.length) {
+    return "";
+  }
+  // string = string.replace(/\n/gi, "\n");
+  // string = string.replace(/"/gi, "\\\"");
+  string = string.replace(/%@/gi, "%s");
+  return string
+}
+
+function sanitizeForYAML_(string) {
+  if (!string.length) {
+    return "";
+  }
+  var string = string.trim();
+  
+  if (string.includes("\n") || string.includes("\r")) {
+    var indentation = "\n  ";
+    var multiline = "|-" + indentation + string.replace(/\n/gi, indentation);
+    string = multiline;
+  }
+  else {
+    string = string.replace(/"/gi, "\\\"");
+    string = '"' + string + '"';
+  }
+
   return string
 }
   
@@ -203,6 +519,8 @@ function displayText_(text, title) {
   SpreadsheetApp.getUi()
       .showModalDialog(output, title);
 }
+
+
 
 // getRowsData iterates row by row in the input range and returns an array of objects.
 // Each object contains all the data for a given row, indexed by its normalized column name.
